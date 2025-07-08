@@ -22,15 +22,17 @@ import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 
+import jDownloader.ConnectChecker.DownLoadInfo;
+
 public class JDownloadUI extends JFrame{
 
 	private JTextField  inputURL;
 	private JButton get;
-	private JPanel inputPanel;
+//	private JPanel inputPanel;
 	private JProgressBar progressBar;
-	private JLabel titleLabel, statusLabel;
+	private JLabel statusLabel;
 	private String url;
-	private String savePath;
+//	private String savePath;
 	
 
 	
@@ -96,8 +98,8 @@ public class JDownloadUI extends JFrame{
 		
 	}
 	
-	public void startDownload(long totalFileSize) {
-		JFileChooser fileChooser = createFileChooser();
+	protected void startDownload(ConnectChecker.DownLoadInfo info) {
+		JFileChooser fileChooser = createFileChooser(info.suggestFileName);
 		int userSelection = fileChooser.showSaveDialog(this);
 		if(userSelection == JFileChooser.APPROVE_OPTION) {
 			File saveLocation = fileChooser.getSelectedFile();
@@ -109,7 +111,7 @@ public class JDownloadUI extends JFrame{
 					return;
 				}
 			}
-			DownloadTask task = new DownloadTask(url, this, totalFileSize, saveLocation);
+			DownloadTask task = new DownloadTask(url, this, info.fileSize, saveLocation);
 			task.addPropertyChangeListener(evt -> {
 				if("progress".equals(evt.getPropertyName())) {
 					progressBar.setValue((Integer)evt.getNewValue());
@@ -120,7 +122,6 @@ public class JDownloadUI extends JFrame{
 		}else {
 			updateStatus("使用者取消操作");
 			setUIEnabled(true);
-			return;
 		}
 		
 	}
@@ -134,16 +135,12 @@ public class JDownloadUI extends JFrame{
         inputURL.setEditable(enabled);
     }
     
-	public JFileChooser createFileChooser() {
+    
+	private JFileChooser createFileChooser(String suggestedName) {
 		JFileChooser fileChooser = new JFileChooser();
 		fileChooser.setDialogTitle("儲存檔案");
-		try {
-			String path = new URL(url).getPath();
-			String originalFileName = path.substring((path.lastIndexOf("/") + 1));
-			if(!originalFileName.isEmpty()) {
-				fileChooser.setSelectedFile(new File(originalFileName));
-			}
-		}catch (Exception e) {
+		if(suggestedName != null && !suggestedName.isEmpty()) {
+			fileChooser.setSelectedFile(new File(suggestedName));
 		}
 		return fileChooser;
 	}
