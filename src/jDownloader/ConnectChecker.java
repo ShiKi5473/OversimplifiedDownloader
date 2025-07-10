@@ -30,11 +30,13 @@ public class ConnectChecker extends SwingWorker<ConnectChecker.DownLoadInfo, Voi
 		long fileSize;
 		String contentType;
 		String suggestFileName;
+		boolean supportsRange;
 		
-		public DownLoadInfo(long fileSize, String contentType, String suggestFileName) {
+		public DownLoadInfo(long fileSize, String contentType, String suggestFileName, Boolean supportsRange) {
 			this.fileSize = fileSize;
 			this.contentType = contentType;
 			this.suggestFileName = suggestFileName;
+			this.supportsRange = supportsRange;
 		}
 	}
 	
@@ -68,7 +70,14 @@ public class ConnectChecker extends SwingWorker<ConnectChecker.DownLoadInfo, Voi
 						String path = response.uri().getPath();
 	                    return path.substring(path.lastIndexOf('/') + 1);
 					});
-			return new DownLoadInfo(fileSize, contentType, suggestFileNamString);
+			
+			Boolean supportsRange = response.headers()
+					.firstValue("Accept-Ranges")
+					.map(val -> val.equalsIgnoreCase("bytes"))
+					.orElse(false);
+			System.out.println("伺服器支援 Range 請求: " + supportsRange);
+			
+			return new DownLoadInfo(fileSize, contentType, suggestFileNamString, supportsRange);
 		}
 		@Override
 		protected void done() {

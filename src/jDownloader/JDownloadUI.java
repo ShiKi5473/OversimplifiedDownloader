@@ -1,15 +1,11 @@
 package jDownloader;
 
 import java.awt.BorderLayout;
-import java.awt.Dimension;
-import java.awt.FlowLayout;
+
 import java.awt.Font;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+
 import java.io.File;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.net.URLConnection;
+
 
 import javax.swing.JButton;
 import javax.swing.JFileChooser;
@@ -22,7 +18,7 @@ import javax.swing.JTextField;
 import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 
-import jDownloader.ConnectChecker.DownLoadInfo;
+
 
 public class JDownloadUI extends JFrame{
 
@@ -103,6 +99,7 @@ public class JDownloadUI extends JFrame{
 		int userSelection = fileChooser.showSaveDialog(this);
 		if(userSelection == JFileChooser.APPROVE_OPTION) {
 			File saveLocation = fileChooser.getSelectedFile();
+			 File tempSaveLocation = new File(saveLocation.getAbsolutePath() + ".downloading"); // 這是我們的暫存檔
 			if(saveLocation.exists()) {
 				int response = JOptionPane.showConfirmDialog(this, "檔案已存在，是否覆蓋？", "確認儲存", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
 				if(response != JOptionPane.YES_OPTION) {
@@ -111,7 +108,20 @@ public class JDownloadUI extends JFrame{
 					return;
 				}
 			}
-			DownloadTask task = new DownloadTask(url, this, info.fileSize, saveLocation);
+			
+            if (tempSaveLocation.exists()) {
+                tempSaveLocation.delete();
+            }
+			
+			SwingWorker<?, ?> task;
+			if(info.supportsRange && info.fileSize > 0) {
+				updateStatus("伺服器支援分塊下載，啟用多執行緒模式。");
+				task = new MultiThreadDownloadTask(url, this, info.fileSize, tempSaveLocation, saveLocation);
+			}else {
+				updateStatus("伺服器不支援分塊下載，使用單執行緒模式。");
+                task = new DownloadTask(url, this, info.fileSize, tempSaveLocation, saveLocation);
+			}
+
 			task.addPropertyChangeListener(evt -> {
 				if("progress".equals(evt.getPropertyName())) {
 					progressBar.setValue((Integer)evt.getNewValue());
