@@ -53,31 +53,38 @@ public class ConnectChecker extends SwingWorker<ConnectChecker.DownLoadInfo, Voi
 			
 			HttpResponse<Void> response = client.send(request, HttpResponse.BodyHandlers.discarding());
 			
-			if(response.statusCode() != 200) {
+
+			if(response.statusCode() == 200) {
+				long fileSize = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
+				if(fileSize < 0) {
+					throw new Exception("無法取得檔案大小，或伺服器不支援。");
+				}
+				
+				String contentType = response.headers().firstValue("Content-Type").orElse("application/octet-stream");
+				
+				String suggestFileNamString = response.headers().firstValue("Content-Disposition")
+						.map(s -> this.parseFileName(s))
+						.orElseGet(() ->{
+							String path = response.uri().getPath();
+		                    return path.substring(path.lastIndexOf('/') + 1);
+						});
+				
+				Boolean supportsRange = response.headers()
+						.firstValue("Accept-Ranges")
+						.map(val -> val.equalsIgnoreCase("bytes"))
+						.orElse(false);
+				System.out.println("伺服器支援 Range 請求: " + supportsRange);
+				
+				return new DownLoadInfo(fileSize, contentType, suggestFileNamString, supportsRange);
+			}else if(response.statusCode() == 405) {
+				System.out.print("伺服器不支援 HEAD (回應 405)，切換到備用模式取得下載資料。");
+//				return create
+				return null;
+			}else{
 				throw new Exception("無法取得連線，伺服器回應碼: " + response.statusCode());
 			}
 			
-			long fileSize = response.headers().firstValueAsLong("Content-Length").orElse(-1L);
-			if(fileSize < 0) {
-				throw new Exception("無法取得檔案大小，或伺服器不支援。");
-			}
 			
-			String contentType = response.headers().firstValue("Content-Type").orElse("application/octet-stream");
-			
-			String suggestFileNamString = response.headers().firstValue("Content-Disposition")
-					.map(s -> this.parseFileName(s))
-					.orElseGet(() ->{
-						String path = response.uri().getPath();
-	                    return path.substring(path.lastIndexOf('/') + 1);
-					});
-			
-			Boolean supportsRange = response.headers()
-					.firstValue("Accept-Ranges")
-					.map(val -> val.equalsIgnoreCase("bytes"))
-					.orElse(false);
-			System.out.println("伺服器支援 Range 請求: " + supportsRange);
-			
-			return new DownLoadInfo(fileSize, contentType, suggestFileNamString, supportsRange);
 		}
 		@Override
 		protected void done() {
