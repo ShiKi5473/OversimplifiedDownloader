@@ -6,6 +6,9 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.function.Consumer;
+
+import sun.jvm.hotspot.oops.java_lang_Class;
 
 public class DownloadManager {
 	private final ExecutorService executorService;
@@ -50,8 +53,46 @@ public class DownloadManager {
 			} catch (Exception e) {
 				handleError(item, e);
 			}
-		})
+		});
+		runningTask.put(item.getId(), future);
 	}
+	
+	private DownloaderListener createinternalListener(DownloadItem item) {
+		return new DownloaderListener() {
+			
+			@Override
+			public void onStatusChanged(DownloadItem updatedItem) {
+				updateStatus(updatedItem, updatedItem.getStatus(), updatedItem.getStatusMessage());
+				
+			}
+			
+			@Override
+			public void onProgress(DownloadItem updatedItem) {
+				notifyListener(listeners -> listeners.onProgress(updatedItem));
+				
+			}
+			
+			@Override
+			public void onError(DownloadItem item) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void onCompleted(DownloadItem item) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			private void notifyListener(Consumer<DownloaderListener> action) {
+				DownloaderListener uiListener = listeners.get(item.getId());
+				if(uiListener != null) {
+					action.accept(uiListener);
+				}
+			}
+		};
+	}
+	
 	private void updateStatus(DownloadItem item, DownloadStatus status, String message) {
 		item.setStatus(status);
 		item.setStatusMessage(message);
@@ -59,5 +100,24 @@ public class DownloadManager {
 		if(listener != null) {
 			listener.onStatusChanged(item);
 		}
+	}
+	
+	private void handleError(DownloadItem item, Exception e) {
+		if(item.getTempSavePath() != null && item.getTempSavePath().exists()) {
+			item.getTempSavePath().delete();
+		}
+		updateStatus(item, DownloadStatus.ERROR, "下載失敗: " + e.getMessage());
+		DownloaderListener listener = listeners.get(item.getId());
+		if(listener != null) {
+			listener.onError(item, e);
+		}
+	}
+	private void cleanupTask(String id) {
+		runningTask.remove(id);
+		listeners.remove(id);
+	}
+	
+	public void shutdown() {
+		executorService.shutdownNow();
 	}
 }
