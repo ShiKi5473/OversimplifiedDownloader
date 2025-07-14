@@ -20,7 +20,7 @@ import javax.swing.border.EmptyBorder;
 
 
 
-public class JDownloadUI extends JFrame{
+public class JDownloadUI extends JFrame implements DownloaderListener{
 
 	private JTextField  inputURL;
 	private JButton get;
@@ -94,7 +94,7 @@ public class JDownloadUI extends JFrame{
 		
 	}
 	
-	protected void startDownload(ConnectChecker.DownLoadInfo info) {
+	protected void startDownload(ConnectChecker.DownloadInfo info) {
 		JFileChooser fileChooser = createFileChooser(info.suggestFileName);
 		int userSelection = fileChooser.showSaveDialog(this);
 		if(userSelection == JFileChooser.APPROVE_OPTION) {

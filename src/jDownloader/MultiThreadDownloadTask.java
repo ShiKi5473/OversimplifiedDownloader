@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -26,16 +27,14 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.swing.JOptionPane;
 import javax.swing.SwingWorker;
 
-public class MultiThreadDownloadTask extends SwingWorker<Void, Long> {
-	private final String url;
-	private final JDownloadUI ui;
-	private final long totalFileSize;
-	private final File savePath, tempSavePath;
+public class MultiThreadDownloadTask implements Runnable {
+	private final DownloadItem item;
+	private final DownloaderListener listener;
 	private final int THREAD_COUNT = 8;
 	private final int MAX_RETRIES = 3;
 	private final List<File> tempFiles = new ArrayList<>();
-	private final AtomicLong totalBytesDownloaded = new AtomicLong(0L);
 	
+
 	private static final HttpClient client = HttpClient.newBuilder()
 			.followRedirects(Redirect.NORMAL)
 			.connectTimeout(Duration.ofSeconds(20))
@@ -54,51 +53,49 @@ public class MultiThreadDownloadTask extends SwingWorker<Void, Long> {
 		}
 	}
 	
-	public MultiThreadDownloadTask(String url, JDownloadUI ui, long totalFileSize, File tempSavePath, File savePath) {
-		this.url = url;
-		this.ui = ui;
-		this.totalFileSize = totalFileSize;
-		this.tempSavePath = tempSavePath;
-		this.savePath = savePath;
+	public MultiThreadDownloadTask(DownloadItem item, DownloaderListener listener) {
+		this.item = item;
+		this.listener = listener;
 	}
 	
 	@Override
-	protected Void doInBackground() throws Exception{
-		final ConcurrentLinkedQueue<Chunk> chunkQueue = new ConcurrentLinkedQueue<>();
-		long chunkSize = totalFileSize / THREAD_COUNT;
-		for(int i = 0; i < THREAD_COUNT; i++) {
-			long startByte = i * chunkSize;
-			long endByte = (i == THREAD_COUNT - 1) ? totalFileSize-1 : startByte + chunkSize - 1;
-			
-			File tempFile = File.createTempFile(savePath.getName() + ".part" + i,  ".tmp");
-			tempFiles.add(tempFile);
-			chunkQueue.add(new Chunk(startByte, endByte, tempFile));
-		}
-		
-		ExecutorService executor = Executors.newFixedThreadPool(THREAD_COUNT);
-		List<Callable<Void>> workers = new ArrayList<Callable<Void>>();
-		for(int i = 0; i < THREAD_COUNT; i++) {
-			workers.add(createWorker(chunkQueue));
-		}
-		
+	public void run() {
+		ExecutorService chunkExecutor = Executors.newFixedThreadPool(THREAD_COUNT);
 		try {
-			List<Future<Void>> futures = executor.invokeAll(workers);
+			final ConcurrentLinkedQueue<Chunk> chunkQueue = new ConcurrentLinkedQueue<>();
+			long chunkSize = item.getTotalFileSize() / THREAD_COUNT;
+			for(int i = 0; i < THREAD_COUNT; i++) {
+				long startByte = i * chunkSize;
+				long endByte = (i == THREAD_COUNT - 1) ? item.getTotalFileSize()-1 : startByte + chunkSize - 1;
+				
+				File tempFile = File.createTempFile(item.getSavePath().getName() + ".part" + i,  ".tmp");
+				tempFiles.add(tempFile);
+				chunkQueue.add(new Chunk(startByte, endByte, tempFile));
+			}
 			
+			List<Callable<Void>> workers = new ArrayList<Callable<Void>>();
+			for(int i = 0; i < THREAD_COUNT; i++) {
+				workers.add(createWorker(chunkQueue));
+			}
+			
+			List<Future<Void>> futures = chunkExecutor.invokeAll(workers);
 			for(Future<Void> future : futures) {
 				future.get();
 			}
 			
 			combineChunks();
 			
-		}catch (Exception e) {
-			executor.shutdownNow();
-			cleanTempFiles();
-			throw e;
+			listener.onCompleted(item);
+			
+		} catch (Exception e) {
+			listener.onError(item);
 		}finally {
-			executor.shutdown();
+			chunkExecutor.shutdownNow();
+			cleanTempFiles();
+
 		}
-		return null;
 	}
+	
 	
 	private Callable<Void> createWorker(final ConcurrentLinkedQueue<Chunk> queue){
 		return () -> {
@@ -123,7 +120,7 @@ public class MultiThreadDownloadTask extends SwingWorker<Void, Long> {
 	
 	private void downloadChunk(Chunk chunk) throws Exception{
 		HttpRequest request = HttpRequest.newBuilder()
-				.uri(URI.create(url))
+				.uri(URI.create(item.getUrl()))
 				.header("Range", "bytes=" + chunk.startByte + "-" + chunk.endByte)
 				.GET()
 				.build();
@@ -139,19 +136,19 @@ public class MultiThreadDownloadTask extends SwingWorker<Void, Long> {
 			int bytesRead;
 			while((bytesRead = in.read(buffer)) != -1) {
 				fos.write(buffer, 0, bytesRead);
-				long downloaded = totalBytesDownloaded.addAndGet(bytesRead);
-				
-				int progress = (int) ((downloaded *100)/ totalFileSize);
-				setProgress(progress);
-				publish(downloaded/1024);
+				item.addDownloadSize(bytesRead);
+				listener.onProgress(item);
 				
 			}
 		}
 	}
 	
 	private void combineChunks() throws Exception{
-		ui.updateStatus("正在合併檔案...");
-		try (FileOutputStream fos = new FileOutputStream(tempSavePath)){
+		item.setStatus(DownloadStatus.MERGING);
+		item.setStatusMessage("正在合併檔案...");
+		listener.onStatusChanged(item);
+
+		try (FileOutputStream fos = new FileOutputStream(item.getTempSavePath())){
 			for(File tempFile: tempFiles) {
 				try (FileInputStream fis = new FileInputStream(tempFile);){
 					fis.transferTo(fos);
@@ -168,31 +165,5 @@ public class MultiThreadDownloadTask extends SwingWorker<Void, Long> {
 				tempfile.delete();
 			}
 		}
-	}
-	@Override
-	protected void process(List<Long> chunks) {
-		Long downloadedKB = chunks.get(chunks.size() - 1);
-		ui.updateStatus(String.format("已下載 %d KB / %d KB", downloadedKB, (totalFileSize / 1024)));
-	}
-	
-	@Override
-	protected void done() {
-		try {
-			get();
-			Files.move(tempSavePath.toPath(), savePath.toPath(), StandardCopyOption.REPLACE_EXISTING);
-			ui.updateStatus("檔案已成功儲存！");
-            JOptionPane.showMessageDialog(ui, "已成功儲存到：\n" + savePath.getAbsolutePath());
-		} catch (Exception e) {
-			Throwable cause = e.getCause() != null ? e.getCause():e;
-			ui.updateStatus("下載失敗: " + cause.getMessage());
-			JOptionPane.showMessageDialog(ui, cause.getMessage(), "錯誤", JOptionPane.ERROR_MESSAGE);
-	        e.printStackTrace();
-	     } finally {
-	       cleanTempFiles();
-	       if(tempSavePath.exists()) {
-	    	   tempSavePath.delete();
-	       }
-	       ui.setUIEnabled(true);
-	     }
 	}
 }
