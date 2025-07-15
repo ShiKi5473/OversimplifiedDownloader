@@ -51,6 +51,9 @@ public class DownloadManager {
                     downloadTask = new DownloadTask(item, createInternalListener(item));
 				}
 				
+				downloadTask.run();
+				
+				
 			} catch (Exception e) {
 				handleError(item, e);
 			}

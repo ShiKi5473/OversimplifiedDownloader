@@ -49,6 +49,8 @@ public class DownloadTask implements Runnable{
 					item.setTotalFileSize(contentLength);
 				}
 				saveFile(response.body());
+				
+				listener.onCompleted(item);
 			}else {
 				throw new Exception("伺服器回應錯誤： " + response.statusCode());
 			}
