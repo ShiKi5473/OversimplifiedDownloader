@@ -3,7 +3,8 @@ package jDownloader;
 import java.awt.BorderLayout;
 
 import java.awt.Font;
-
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.io.File;
 
 
@@ -23,12 +24,10 @@ import javax.swing.border.EmptyBorder;
 public class JDownloadUI extends JFrame implements DownloaderListener{
 
 	private JTextField  inputURL;
-	private JButton get;
-//	private JPanel inputPanel;
+	private JButton getButton;
 	private JProgressBar progressBar;
 	private JLabel statusLabel;
-	private String url;
-//	private String savePath;
+	private DownloadManager downloadManager;
 	
 
 	
@@ -41,7 +40,7 @@ public class JDownloadUI extends JFrame implements DownloaderListener{
 
 		
 		inputURL = new JTextField(100);
-		get = new JButton("Get");
+		getButton = new JButton("Get");
 		
 		JPanel center = new JPanel(new BorderLayout());
 		
@@ -49,7 +48,7 @@ public class JDownloadUI extends JFrame implements DownloaderListener{
 //		get.setPreferredSize(new Dimension(100, 30));
 		top.add(new JLabel("Enter URL："), BorderLayout.WEST);
 		top.add(inputURL, BorderLayout.CENTER);
-		top.add(get, BorderLayout.EAST);
+		top.add(getButton, BorderLayout.EAST);
 		contentPanel.add(top, BorderLayout.NORTH);
 
 		JPanel bottom = new JPanel(new BorderLayout(5,5));
@@ -64,13 +63,24 @@ public class JDownloadUI extends JFrame implements DownloaderListener{
 //		add(center, BorderLayout.CENTER);
 		contentPanel.add(bottom, BorderLayout.CENTER);
 
-		get.addActionListener(e -> getURL());
+		getButton.addActionListener(e -> handleDownloadRequest());
+		
+		
+		addWindowListener(new WindowAdapter() {
+			@Override
+			public void windowClosing(WindowEvent windowevent) {
+				downloadManager.shutdown();
+				System.exit(0);
+			}
+		});
 		
 		pack();
 //		setSize(1280, 720);
 		setVisible(true);
 		setLocationRelativeTo(null);
-		setDefaultCloseOperation(EXIT_ON_CLOSE);
+		setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+		
+
 		
 		
 

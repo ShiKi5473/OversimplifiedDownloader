@@ -1,6 +1,8 @@
 package jDownloader;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -57,7 +59,7 @@ public class DownloadManager {
 		runningTask.put(item.getId(), future);
 	}
 	
-	private DownloaderListener createinternalListener(DownloadItem item) {
+	private DownloaderListener createInternalListener(DownloadItem item) {
 		return new DownloaderListener() {
 			
 			@Override
@@ -73,14 +75,21 @@ public class DownloadManager {
 			}
 			
 			@Override
-			public void onError(DownloadItem item) {
-				// TODO Auto-generated method stub
-				
+			public void onError(DownloadItem errorItem, Exception e) {
+				handleError(errorItem, e);
 			}
 			
 			@Override
-			public void onCompleted(DownloadItem item) {
-				// TODO Auto-generated method stub
+			public void onCompleted(DownloadItem completedItem) {
+				try {
+					Files.move(completedItem.getTempSavePath().toPath(), completedItem.getSavePath().toPath(), StandardCopyOption.REPLACE_EXISTING);
+					updateStatus(completedItem, DownloadStatus.COMPLETED, "檔案已成功儲存！");
+					notifyListener(listeners -> listeners.onCompleted(completedItem));
+				} catch (Exception e) {
+					handleError(completedItem, e);
+				}finally {
+					cleanupTask(completedItem.getId());
+				}
 				
 			}
 			

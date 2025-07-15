@@ -12,12 +12,9 @@ import java.net.http.HttpClient;
 import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+
 import java.time.Duration;
-import java.util.List;
-import javax.swing.JOptionPane;
-import javax.swing.SwingWorker;
+
 
 public class DownloadTask implements Runnable{
 	private DownloadItem item;
