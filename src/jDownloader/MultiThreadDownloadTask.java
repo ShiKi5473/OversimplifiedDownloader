@@ -11,21 +11,17 @@ import java.net.http.HttpClient.Redirect;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 
-import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
+
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
+
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicLong;
 
-import javax.swing.JOptionPane;
-import javax.swing.SwingWorker;
 
 public class MultiThreadDownloadTask implements Runnable {
 	private final DownloadItem item;
@@ -88,7 +84,7 @@ public class MultiThreadDownloadTask implements Runnable {
 			listener.onCompleted(item);
 			
 		} catch (Exception e) {
-			listener.onError(item);
+			listener.onError(item, e);
 		}finally {
 			chunkExecutor.shutdownNow();
 			cleanTempFiles();

@@ -10,7 +10,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.function.Consumer;
 
-import sun.jvm.hotspot.oops.java_lang_Class;
 
 public class DownloadManager {
 	private final ExecutorService executorService;

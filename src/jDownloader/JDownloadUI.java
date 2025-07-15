@@ -16,7 +16,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.JTextField;
-import javax.swing.SwingWorker;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 
@@ -86,88 +86,103 @@ public class JDownloadUI extends JFrame implements DownloaderListener{
 
 	}
 	
-	private void getURL() {
-		this.url = inputURL.getText().trim();
+	private void handleDownloadRequest() {
+		String url = inputURL.getText().trim();
 		if(url.isEmpty()) {
-			JOptionPane.showMessageDialog(this, "請輸入正確的url", "錯誤", JOptionPane.ERROR_MESSAGE);
+			JOptionPane.showMessageDialog(this,  "請輸入有效的 URL", "錯誤", JOptionPane.ERROR_MESSAGE);
 			return;
 		}
-		get.setEnabled(false);
-		inputURL.setEditable(false);
-		progressBar.setValue(0);
-		statusLabel.setText("正在檢查連線...");
-		
-		ConnectChecker connChecker = new ConnectChecker(url, this);
-		connChecker.execute();
 		
 		
-		
-	}
-	
-	protected void startDownload(ConnectChecker.DownloadInfo info) {
-		JFileChooser fileChooser = createFileChooser(info.suggestFileName);
-		int userSelection = fileChooser.showSaveDialog(this);
-		if(userSelection == JFileChooser.APPROVE_OPTION) {
-			File saveLocation = fileChooser.getSelectedFile();
-			 File tempSaveLocation = new File(saveLocation.getAbsolutePath() + ".downloading"); // 這是我們的暫存檔
-			if(saveLocation.exists()) {
-				int response = JOptionPane.showConfirmDialog(this, "檔案已存在，是否覆蓋？", "確認儲存", JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE);
-				if(response != JOptionPane.YES_OPTION) {
-					updateStatus("使用者取消操作");
-					setUIEnabled(true);
-					return;
-				}
-			}
-			
-            if (tempSaveLocation.exists()) {
-                tempSaveLocation.delete();
-            }
-			
-			SwingWorker<?, ?> task;
-			if(info.supportsRange && info.fileSize > 0) {
-				updateStatus("伺服器支援分塊下載，啟用多執行緒模式。");
-				task = new MultiThreadDownloadTask(url, this, info.fileSize, tempSaveLocation, saveLocation);
-			}else {
-				updateStatus("伺服器不支援分塊下載，使用單執行緒模式。");
-                task = new DownloadTask(url, this, info.fileSize, tempSaveLocation, saveLocation);
-			}
+		 JFileChooser fileChooser = new JFileChooser();
+	        fileChooser.setDialogTitle("儲存檔案");
 
-			task.addPropertyChangeListener(evt -> {
-				if("progress".equals(evt.getPropertyName())) {
-					progressBar.setValue((Integer)evt.getNewValue());
-				}
-			});
-			task.execute();
-			
-		}else {
-			updateStatus("使用者取消操作");
-			setUIEnabled(true);
-		}
+	        String suggestedName = url.substring(url.lastIndexOf('/') + 1);
+	        if (!suggestedName.isEmpty()) {
+	            fileChooser.setSelectedFile(new File(suggestedName));
+	        }
+
+	        int userSelection = fileChooser.showSaveDialog(this);
+	        if (userSelection == JFileChooser.APPROVE_OPTION) {
+	            File saveLocation = fileChooser.getSelectedFile();
+
+	            if (saveLocation.exists()) {
+	                int response = JOptionPane.showConfirmDialog(this, "檔案已存在，是否覆蓋？", "確認儲存", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+	                if (response != JOptionPane.YES_OPTION) {
+	                    updateStatusLabel("使用者取消操作");
+	                    return;
+	                }
+	            }
+	            
+
+	            setUIEnabled(false);
+	            progressBar.setValue(0);
+	            downloadManager.startDownload(url, saveLocation, this);
+	        } else {
+	            updateStatusLabel("使用者取消操作");
+	        }
 		
 	}
 	
+
 	
-	public void updateStatus(String text) {
-		statusLabel.setText(text);
+
+	
+	public void updateStatusLabel(String text) {
+		SwingUtilities.invokeLater(() -> statusLabel.setText(text));
 	}
     public void setUIEnabled(boolean enabled) {
-        get.setEnabled(enabled);
+        getButton.setEnabled(enabled);
         inputURL.setEditable(enabled);
     }
     
     
-	private JFileChooser createFileChooser(String suggestedName) {
-		JFileChooser fileChooser = new JFileChooser();
-		fileChooser.setDialogTitle("儲存檔案");
-		if(suggestedName != null && !suggestedName.isEmpty()) {
-			fileChooser.setSelectedFile(new File(suggestedName));
-		}
-		return fileChooser;
-	}
 
 	public static void main(String[] args) {
 		 javax.swing.SwingUtilities.invokeLater(JDownloadUI::new);
 
+	}
+
+	@Override
+	public void onStatusChanged(DownloadItem item) {
+		updateStatusLabel(item.getStatusMessage());
+		
+	}
+
+	@Override
+	public void onProgress(DownloadItem item) {
+		SwingUtilities.invokeLater(() -> {
+			progressBar.setValue(item.getProgress());
+			String statusText = String.format("已下載 %d KB / %d KB", 
+					item.getDownloadedSize()/1024, 
+					item.getTotalFileSize()/1024);
+			statusLabel.setText(statusText);
+			
+		});
+		
+	}
+
+	@Override
+	public void onCompleted(DownloadItem item) {
+		SwingUtilities.invokeLater(() -> {
+			progressBar.setValue(100);
+			updateStatusLabel("下載完成");
+			JOptionPane.showMessageDialog(this, "已成功儲存到：\n" + item.getSavePath().getAbsolutePath());
+			setUIEnabled(true);
+		});
+		
+	}
+
+	@Override
+	public void onError(DownloadItem item, Exception e) {
+		SwingUtilities.invokeLater(() -> {
+			String errorMessage = "錯誤" + e.getMessage();
+            updateStatusLabel(errorMessage);
+            JOptionPane.showMessageDialog(this, errorMessage, "下載失敗", JOptionPane.ERROR_MESSAGE);
+            setUIEnabled(true);
+            e.printStackTrace();
+		});
+		
 	}
 	
 
