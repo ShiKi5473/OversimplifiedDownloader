@@ -32,6 +32,10 @@ public class JDownloadUI extends JFrame implements DownloaderListener{
 
 	
 	public JDownloadUI() {
+		
+		this.downloadManager = new DownloadManager();
+		
+		setTitle("OverSimplized Downloader");
 		setLayout(new BorderLayout(10, 10));
 		JPanel contentPanel = (JPanel) getContentPane();
 		contentPanel.setBorder(new EmptyBorder(10,10,10,10));
@@ -58,9 +62,6 @@ public class JDownloadUI extends JFrame implements DownloaderListener{
 		statusLabel.setFont(new Font("微軟正黑體", Font.PLAIN, 12));
 		bottom.add(progressBar, BorderLayout.CENTER);
 		bottom.add(statusLabel, BorderLayout.SOUTH);
-//		add(bottom, BorderLayout.CENTER);
-//		add(top, BorderLayout.NORTH);
-//		add(center, BorderLayout.CENTER);
 		contentPanel.add(bottom, BorderLayout.CENTER);
 
 		getButton.addActionListener(e -> handleDownloadRequest());
