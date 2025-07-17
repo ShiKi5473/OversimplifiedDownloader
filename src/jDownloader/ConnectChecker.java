@@ -1,6 +1,8 @@
 package jDownloader;
 
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.URI;
 
 import java.net.http.HttpClient;
@@ -9,7 +11,10 @@ import java.net.http.HttpRequest;
 
 import java.net.http.HttpResponse;
 import java.util.Optional;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+
+import com.sun.org.apache.xerces.internal.impl.xpath.regex.Match;
 
 
 public class ConnectChecker {
@@ -44,7 +49,24 @@ public class ConnectChecker {
 					.timeout(java.time.Duration.ofSeconds(15))
 					.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36")
 					.build();
+			
+			HttpResponse<InputStream> response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
+			
+			try(InputStream is = response.body()){
+			}
+			
+			if(response.statusCode() == 206) {
+				System.out.println("策略 1 成功：伺服器回應 206，支援斷點續傳。");
+				long fileSize = parseTotalSize(response.headers().firstValue("Content-Range")); 
 				
+				if(fileSize <= 0) {
+					throw new IOException("從 Content-Range 標頭中無法解析有效的檔案總大小。");
+				}
+				
+				String contentType= response.headers().firstValue("Content-Type").orElse("application/octet-stream");
+				String suggestName = parseFileName(response);
+				respon
+			}
 			
 		} catch (Exception e) {
 			// TODO: handle exception
@@ -90,6 +112,31 @@ public class ConnectChecker {
 		}
 	}
 	
+	private long parseTotalSize(Optional<String> contentRange) {
+		if(contentRange.isEmpty()) {
+			return -1;
+		}
+		Matcher matcher = CONTENT_RANGE_PATTERN.matcher(contentRange.get());
+		if(matcher.find()) {
+			return Long.parseLong(matcher.group(1));
+		}
+		return -1;
+	}
+	
+	private String parseFileNameFromHeader(HttpResponse<?> response) {
+		return response.headers().firstValue("Content-Disposition")
+				.map(this::parseFileName)
+				.orElseGet(() ->{
+					String path = response.uri().getPath();
+					if((path == null || path.isEmpty() || !path.contains("/"))) {
+						return "download_file";
+					}
+					return path.substring(path.lastIndexOf('/' + 1)); 
+				});
+
+		
+	};
+	
 	private String parseFileName(String contentDispositionHeader) {
 		return Optional.of(contentDispositionHeader)
 				.map(it -> it.toLowerCase())
@@ -99,7 +146,5 @@ public class ConnectChecker {
 				.map(it -> it.trim())
 				.orElse("");
 		}
-
-		
 	};
 
