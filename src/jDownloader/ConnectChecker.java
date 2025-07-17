@@ -9,6 +9,7 @@ import java.net.http.HttpRequest;
 
 import java.net.http.HttpResponse;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 
 public class ConnectChecker {
@@ -16,7 +17,8 @@ public class ConnectChecker {
 			.followRedirects(Redirect.NORMAL)
 			.connectTimeout(java.time.Duration.ofSeconds(10))
 			.build();
-
+	
+	private static final Pattern CONTENT_RANGE_PATTERN = Pattern.compile("bytes \\d+-\\d+/(//d+)");
 	
 	public static class DownloadInfo{
 		long fileSize;
@@ -33,6 +35,20 @@ public class ConnectChecker {
 	}
 	
 	public DownloadInfo check(String url) throws Exception{
+		try {
+			System.out.println("策略 1: 嘗試發送小範圍 GET 請求 (bytes=0-255)...");
+			HttpRequest request = HttpRequest.newBuilder()
+					.uri(URI.create(url))
+					.header("RANGE", "bytes = 0-255")
+					.GET()
+					.timeout(java.time.Duration.ofSeconds(15))
+					.header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.36")
+					.build();
+				
+			
+		} catch (Exception e) {
+			// TODO: handle exception
+		}
 		HttpRequest request = HttpRequest.newBuilder()
 				.uri(URI.create(url))
 				.method("HEAD", HttpRequest.BodyPublishers.noBody())
